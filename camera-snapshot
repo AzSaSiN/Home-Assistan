@@ -26,7 +26,7 @@ blueprint:
       selector:
         device:
           integration: mobile_app
-          integration: notify
+#          integration: notify
 
     is_ios:
       name: Is it an iOS device?
