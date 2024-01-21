@@ -7,7 +7,7 @@ This is a Wi-Fi version of the sensor</br>
 ## !!! ATTENTION !!! this sensor is not 100% enabled in ESPHome
 missing functions
 - [ ] i2c https://github.com/esphome/issues/issues/5289
-- [ ] deep sleep
+- [ ] deep sleep https://github.com/esphome/feature-requests/issues/2467
 
 ### Flashed using ltchiptool
 - ![Home Site](https://docs.libretiny.eu/docs/flashing/tools/ltchiptool/)
