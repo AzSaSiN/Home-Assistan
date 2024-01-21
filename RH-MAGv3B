@@ -1,0 +1,239 @@
+
+
+I'm also been working on similar sensor:
+Interested in i2c working so as deep sleep.
+
+Otherwise this type of sensor would be useless.
+
+Here is a my sensor yml code:
+
+# RH-MAGv3B  Tuya WiFi Temperature and Humidity Sensor
+substitutions:
+  devicename: rh_magv3b 
+  friendlyname: Temprature & Hummidity Sensor
+  version: 0.1.0
+  default_baud_rate: "115200"
+
+
+esphome:
+  name: ${devicename}-sensor
+  friendly_name: ${friendlyname}
+
+bk72xx:
+  board: cbu
+  family: bk7231n
+  framework:
+    version: latest
+    loglevel: warn
+    gpio_recover: true
+
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "<THE KEY>"
+
+ota:
+  password: "<PASSWORD>"
+
+# NOT IMPLEMENTED YET
+# i2c:
+#   - id: "i2cbus_bme"
+#     sda: P21 #TMS
+#     scl: P20 #TCK
+#     scan: true
+
+# web interface of the sensor
+# Enable if you need it
+web_server:
+  port: 80
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: ${devicename}-sensor
+    password: ""
+
+captive_portal:
+
+# comment out to disable debug in production
+logger:
+
+debug:
+  update_interval: 30s
+
+# Tuya MCU on UART1 (BK72xx example)
+uart:
+  rx_pin: RX1
+  tx_pin: TX1
+  baud_rate: ${default_baud_rate}
+
+# WiFI Signal configuration
+sensor:
+  - platform: wifi_signal
+    name: WiFi Signal
+    id: ${devicename}_wifi_signal
+    filters:
+      - min:
+          window_size: 7
+          send_every: 4
+          send_first_at: 3
+
+# calculate to human readable 
+  - platform: uptime
+    name: Uptime
+    id: ${devicename}_uptime_sensor
+    internal: true
+    update_interval: 60s
+    on_raw_value:
+      then:
+        - text_sensor.template.publish:
+            id: ${devicename}_up_time
+            state: !lambda |-
+              int seconds = round(id(${devicename}_uptime_sensor).raw_state);
+              int days = seconds / (24 * 3600);
+              seconds = seconds % (24 * 3600);
+              int hours = seconds / 3600;
+              seconds = seconds % 3600;
+              int minutes = seconds /  60;
+              seconds = seconds % 60;
+              return (
+                (days ? to_string(days) + "d " : "") +
+                (hours ? to_string(hours) + "h " : "") +
+                (minutes ? to_string(minutes) + "m " : "") +
+                (to_string(seconds) + "s")
+              ).c_str();
+
+# Settings For battery levels
+  - platform: adc
+    pin: P23
+    name: "Battery Level"
+    id: ${devicename}_level
+# average value of the voltage divider resistor 
+# NOTE: you might have to adjust value to yours
+# make sure you hook your sensor to stable 3.3v rail
+# edit: added values from original settings
+    filters:
+      - multiply: 2.75
+      - calibrate_linear:
+          - 2.2 -> 0
+          - 3.0 -> 100
+      - clamp:
+          min_value: 0
+          max_value: 100
+    update_interval: 10s
+    accuracy_decimals: 0
+    unit_of_measurement: '%'
+    device_class: battery
+
+  # -------------------------------- #
+  # if you want to split voltage and #
+  # battery percentage, comment out  #
+  # above and uncomment bellow.      #
+  # -------------------------------- #  
+
+  # - platform: adc
+  #   pin: P23
+  #   name: "Battery Voltage"
+  #   id: ${devicename}_voltage
+  #   icon: mdi:battery
+  #   filters:
+  #     - multiply: 2.69
+  #   update_interval: 10s
+  # - platform: template
+  #   name: "Battery Level"
+  #   id: ${devicename}_battery_level
+  #   unit_of_measurement: '%'
+  #   device_class: battery
+  #   accuracy_decimals: 0
+  #   lambda: |-
+  #     return ((id(voltage).state /3.30) * 100.00);
+  #   update_interval: 10s
+
+binary_sensor:
+  # button at the button of the sensor
+  # on press restart the controller 
+  - platform: gpio
+    internal: true
+    id: ${devicename}_reset_button
+    pin:
+      number: P20
+      inverted: true
+      mode: INPUT_PULLUP
+    on_press:
+      then:
+        - button.press: ${devicename}_reset
+
+# needed for voltage divider on PIn 17
+# to display battery level correctly
+  - platform: gpio
+    id: ${devicename}_voltage_relay
+    internal: true
+    pin: 
+      number: P17
+      inverted: False
+      mode: INPUT_PULLUP
+
+# NOT YET IMPLEMENTED
+#   - platform: sht3xd
+#     temperature:
+#       name: "Temperature"
+#     humidity:
+#       name: "Humidity"
+#     # address: 0x44
+#     update_interval: 60s
+
+# led status 
+status_led:
+  pin:
+    id: ${devicename}_status_led
+    number: P26
+    inverted: false
+
+# info for HA about network health
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: IP Address
+      id: ${devicename}_ip_address
+      icon: mdi:ip-network
+    ssid:
+      name: SSID
+      id: ${devicename}_ssid
+      icon: mdi:wifi-settings
+
+# version info for HA
+  - platform: version
+    name: "Version"
+    id: ${devicename}_version
+    icon: mdi:cube-outline
+
+# info for HA how long sensor been running
+  - platform: template
+    name: "Uptime"
+    id: ${devicename}_up_time
+    icon: mdi:clock-start
+
+# info for HA reason for restart
+  - platform: debug
+    reset_reason:
+      name: "Reset Reason"
+      id: ${devicename}_debug
+
+# restart on button press
+button:
+  - platform: restart
+    id: ${devicename}_reset
+    name: Reset
+    internal: true
+
+# NOT YET IMPLEMENTED
+# deep_sleep:
+#   id: ${devicename}_deepsleep
+#   sleep_duration: 60min
+#   run_duration: 10s
+
